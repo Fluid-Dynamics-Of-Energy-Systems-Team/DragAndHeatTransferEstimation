@@ -7,7 +7,8 @@ boundary layers using inner/outer-layer transformations based on the [publicatio
 <!-- (https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/RANS_Channel/blob/master/paper.png) -->
 
 
-They jupyter notebook can be rendered at [DragAndHeatTransferEstimation.ipynb](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb) (might take some time to load) or executed at [nbviewer](https://nbviewer.jupyter.org/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb)
+They jupyter notebook can be rendered at [DragAndHeatTransferEstimation.ipynb](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb) (might take some time to load) or executed at [nbviewer](https://nbviewer.org/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb)
+
 
 
 <!-- [![paper](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/RANS_Channel/blob/master/DragandHeatTransferEstimation.hmtl)](https://www.sciencedirect.com/science/article/pii/S0142727X18301978) -->
