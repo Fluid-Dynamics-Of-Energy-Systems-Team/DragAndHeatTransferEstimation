@@ -6,11 +6,15 @@ boundary layers using inner/outer-layer transformations based on the [publicatio
 
 
 
-They jupyter notebook can be also rendered here [DragAndHeatTransferEstimation.ipynb](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb).
+They jupyter notebook can be rendered here [DragAndHeatTransferEstimation.ipynb](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb) 
+
+or here
+
+where it can also be executed in binder [nbviewer](https://nbviewer.org/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/main/DragAndHeatTransferEstimation.ipynb). 
+
 
 The plain python code is available as well here [DragAndHeatTransferEstimation.py](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.py)
 
- <!-- (might take some time to load) or executed at [nbviewer](https://nbviewer.org/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatTransferEstimation.ipynb) -->
 
 
 
