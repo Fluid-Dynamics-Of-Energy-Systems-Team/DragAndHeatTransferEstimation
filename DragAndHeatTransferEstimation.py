@@ -21,35 +21,6 @@
 # ### 1. Mean velocity (in non-dimensional form)
 # The mean velocity is obtained by 
 # 
-# $$ \bar u^+ = 
-# \int_{0}^{\delta^+} 
-# \left[\vphantom{\frac{1}{2}}\right.
-# \underbrace{\frac{\mu_w}{\bar \mu} \frac{1}{1 + \mu_t}}_{\text{Law of the wall}}
-# +  
-# \underbrace{\frac{\sqrt{\rho_w/\bar\rho}}{Re_\tau} \, \frac{\Pi}{\kappa} \, \pi\, \sin \left(\pi \frac{y}{\delta}\right)}_{\text{Law of the wake}}
-# \left.\vphantom{\frac{1}{2}}\right]
-# dy^+, $$
-# 
-# with the Johnson-King eddy eddy viscosity model, defined as 
-# 
-# $$\mu_t = \kappa y^* D(M_\tau), $$
-# 
-# and the modified van Driest damping function
-# 
-# $$ D(M_{\tau}) = \left[1 - \mathrm{exp}\left({\frac{-y^*}{A^+ + f(M_\tau)}}\right)\right]^2. $$
-# 
-# The constants and the function to account for intrinsic compressiblity effects in $D$ are given as
-# 
-# $$A^+ = 17,~\kappa=0.41,~f(M_\tau)=19.3M_\tau. $$
-# 
-# The wake parameter is obtained by 
-# 
-# $${\Pi} = 0.69\,\left[1 - \exp(-0.243 \sqrt{z} - {0.15} \,z)\right],$$
-# with
-# $$z = Re_\theta/425 - 1.$$
-
-# In[1]:
-
 
 def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     
@@ -60,7 +31,7 @@ def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     
     # eddy viscosity model
     D   = (1-np.exp(-yst/(Apl + 19.3*MTau)))**2
-    mut = kappa*yst*D
+    mut = kappa*mu_muw*yst*D
     
     # wake parameter
     z1   = ReTheta/425-1
@@ -68,7 +39,7 @@ def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     Wake = Pi/kappa*np.pi*np.sin(np.pi*y_ye)
     
     # velocity 
-    upl  = cumtrapz( 1/mu_muw/(1 + mut) + 1/ReTau/np.sqrt(r_rw)*Wake, ypl, initial=0)
+    upl  = cumtrapz( 1/(mu_muw + mut) + 1/ReTau/np.sqrt(r_rw)*Wake, ypl, initial=0)
     
     uinf = upl[-1]/0.99 # calculate uinf
         
@@ -77,15 +48,6 @@ def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
 
 # ### 2. Temperature velocity relationship (Zhang et al. (2014), JFM)
 # 
-# $$\frac{\bar T}{T_w} =1+\frac{T_r-T_w}{T_w} \left[(1-sPr)\left(\frac{\bar u^+}{u^+_\infty}\right)^2+s \, {Pr}\left(\frac{\bar u^+}{u_\infty^+}\right)\right]+\frac{T_\infty-T_r}{T_w}\left(\frac{\bar u^+}{u^+_\infty}\right)^2,$$
-# 
-# where 
-# 
-# $$sPr=0.8,~T_r/T_\infty = 1 + 0.5 r (\gamma-1)M_\infty^2,~r=Pr^{1/3},~\text{and}~Pr=0.72.$$
-# 
-
-# In[2]:
-
 
 def temperature(u_uinf, Minf, Tw_Tr):
     
@@ -100,10 +62,7 @@ def temperature(u_uinf, Minf, Tw_Tr):
 
 
 # ### 3. Density profile (using ideal gas equation of state)
-# $$\frac{\bar\rho}{\rho_w} = \frac{T_w}{\bar T}$$
-
-# In[3]:
-
+# 
 
 def density(T_Tw):
     return 1/T_Tw
@@ -111,12 +70,7 @@ def density(T_Tw):
 
 # ### 4. Viscosity profile (using Sutherland's law)
 # $$\frac{\bar\mu}{\mu_w}=\left(\frac{\bar T}{T_w}\right)^{3 / 2} \frac{T_w+S}{\bar T+S},$$
-# 
-# where S = 110.56 K
-
-# In[4]:
-
-
+#
 def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
 
     if viscLaw == "Sutherland":
@@ -135,10 +89,6 @@ def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
 # ### 5. Computing $Re_\tau$ and $M_\tau$ using the inputs $Re_\theta$ and $M_\infty$
 # $$Re_\tau = {Re_\theta}\frac{ \mu_\infty/\mu_w}{(\rho_\infty/\rho_w) u_\infty^+ (\theta/\delta)}$$
 # 
-# $$M_\tau = M_\infty \sqrt{\frac{c_f}{2}}$$
-
-# In[5]:
-
 
 def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, viscLaw):
     
@@ -164,12 +114,7 @@ def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Ti
 
 
 # # Iterative solver
-
-# Required inputs are $Re_\theta$, $M_\infty$, $T_w/T_r$ and (optionally) the dimensional wall or free-stream temperature for Sutherland's law.  It is important to note that all solver inputs are based on the quantities in the free-stream, and not at the boundary layer edge.
-
-# In[ ]:
-
-
+#
 # in case the notebook is executed on binder make sure that modules are installed.
 # get_ipython().system('pip install numpy')
 # get_ipython().system('pip install scipy')
@@ -177,15 +122,8 @@ def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Ti
 # get_ipython().system('pip install pandas')
 
 
-# In[6]:
-
-
 import numpy as np
 from scipy.integrate import cumtrapz, trapz
-
-
-# In[7]:
-
 
 # n    ... number of points
 # fact ... stretching/clustering
@@ -195,9 +133,6 @@ def grid(n,fact):
     i = tanhyp*(np.arange(0,n))/(n-1) - 0.5
     y = 1./tanhyp*H * (1.0 + np.tanh(fact*i)/np.tanh(fact/2))/2.0
     return y
-
-
-# In[21]:
 
 
 def solver(y_ye    = grid(1000, 5), 
@@ -232,8 +167,6 @@ def solver(y_ye    = grid(1000, 5),
 
 # ### Import plotting modules
 
-# In[64]:
-
 
 import matplotlib.pyplot as plt
 from matplotlib import rc, rcParams
@@ -245,9 +178,7 @@ rc('text', usetex=False)  # switch to True for latex font (might be slow)
 rcParams.update({'font.size': 16})
 
 
-# # An example with $M_\infty=15$, $Re_\theta =10e6$, $T_w/T_r= 0.01$, and $T_\infty=100$ K
-
-# In[71]:
+# # An example with $M_\infty=15$, $Re_\theta =10^7$, $T_w/T_r= 0.01$, and $T_\infty=100$ K
 
 
 ########################################
@@ -259,10 +190,10 @@ kappa     = 0.41   # Karman constant
 Apl       = 17     # Van Driest damping constant 
 
 ########################################
-# run a test case
+# Run a test case
 #
 cf,ch,ReTau,MTau,ypl,yst,upl,T,niter = solver(y_ye     = grid(100000, 9),
-                                              ReTheta  = 10e6, 
+                                              ReTheta  = 1.0e7, 
                                               Minf     = 15.0, 
                                               Tw_Tr    = 0.01,
                                               viscLaw  = "Sutherland", 
@@ -291,8 +222,6 @@ plt.tight_layout()
 
 
 # # Compare $c_f$ and $c_h$ estimates with various DNS cases from literature
-
-# In[69]:
 
 
 import pandas as pd
@@ -351,9 +280,6 @@ plt.tight_layout()
 
 # ## Plot estimated velocity and temperature profiles for these cases
 
-# In[70]:
-
-
 fig, ax = plt.subplots(2,1,figsize=(14,8))
 
 mult_x = 0.1
@@ -391,17 +317,6 @@ for a in ax:
 ax[0].legend(bbox_to_anchor=(1.05, 1.035))
 
 plt.tight_layout()
+
+
 plt.show()
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
