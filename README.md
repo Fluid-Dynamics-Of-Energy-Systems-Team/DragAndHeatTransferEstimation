@@ -1,7 +1,7 @@
 ## Estimate skin friction and heat transfer for compressible turbulent boundary layers
 
 This repository contains the source codes to estimate mean profiles and fluxes in high-speed turbulent
-boundary layers using inner/outer-layer transformations, based on the [publication](https://arxiv.org/pdf/2307.02199.pdf) by Asif Hasan, Johan Larsson, Sergio Pirozzoli, and Rene Pecnik. 
+boundary layers using inner/outer-layer transformations. The codes are based on the [publication](https://arxiv.org/pdf/2307.02199.pdf) by Asif Hasan, Johan Larsson, Sergio Pirozzoli, and Rene Pecnik. 
 
 
 
