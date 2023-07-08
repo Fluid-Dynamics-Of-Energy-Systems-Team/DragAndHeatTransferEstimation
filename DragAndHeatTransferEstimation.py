@@ -1,3 +1,55 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# # <center>Estimating mean profiles and fluxes in high-speed turbulent boundary layers using inner/outer-layer transformations</center>
+# 
+#              Created on: July 6, 2023
+#                 Authors: Rene Pecnik (r.pecnik@tudelft.nl)
+#                          Asif M. Hasan (a.m.hasan@tudelft.nl)
+#                          Process & Energy Department, Faculty of 3mE
+#                          Delft University of Technology, the Netherlands.
+# 
+#        Last modified on: July 7, 2023 (Rene Pecnik) 
+# 
+# 
+# The following python code in this notebook is based on the publication: https://doi.org/10.48550/arXiv.2307.02199.
+# 
+# 
+
+# # Required functions 
+# 
+# ### 1. Mean velocity (in non-dimensional form)
+# The mean velocity is obtained by 
+# 
+# $$ \bar u^+ = 
+# \int_{0}^{\delta^+} 
+# \left[\vphantom{\frac{1}{2}}\right.
+# \underbrace{\frac{\mu_w}{\bar \mu} \frac{1}{1 + \mu_t}}_{\text{Law of the wall}}
+# +  
+# \underbrace{\frac{\sqrt{\rho_w/\bar\rho}}{Re_\tau} \, \frac{\Pi}{\kappa} \, \pi\, \sin \left(\pi \frac{y}{\delta}\right)}_{\text{Law of the wake}}
+# \left.\vphantom{\frac{1}{2}}\right]
+# dy^+, $$
+# 
+# with the Johnson-King eddy eddy viscosity model, defined as 
+# 
+# $$\mu_t = \kappa y^* D(M_\tau), $$
+# 
+# and the modified van Driest damping function
+# 
+# $$ D(M_{\tau}) = \left[1 - \mathrm{exp}\left({\frac{-y^*}{A^+ + f(M_\tau)}}\right)\right]^2. $$
+# 
+# The constants and the function to account for intrinsic compressiblity effects in $D$ are given as
+# 
+# $$A^+ = 17,~\kappa=0.41,~f(M_\tau)=19.3M_\tau. $$
+# 
+# The wake parameter is obtained by 
+# 
+# $${\Pi} = 0.69\,\left[1 - \exp(-0.243 \sqrt{z} - {0.15} \,z)\right],$$
+# with
+# $$z = Re_\theta/425 - 1.$$
+
+# In[1]:
+
 
 def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     
@@ -23,6 +75,18 @@ def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     return ypl, yst, upl, uinf
 
 
+# ### 2. Temperature velocity relationship (Zhang et al. (2014), JFM)
+# 
+# $$\frac{\bar T}{T_w} =1+\frac{T_r-T_w}{T_w} \left[(1-sPr)\left(\frac{\bar u^+}{u^+_\infty}\right)^2+s \, {Pr}\left(\frac{\bar u^+}{u_\infty^+}\right)\right]+\frac{T_\infty-T_r}{T_w}\left(\frac{\bar u^+}{u^+_\infty}\right)^2,$$
+# 
+# where 
+# 
+# $$sPr=0.8,~T_r/T_\infty = 1 + 0.5 r (\gamma-1)M_\infty^2,~r=Pr^{1/3},~\text{and}~Pr=0.72.$$
+# 
+
+# In[2]:
+
+
 def temperature(u_uinf, Minf, Tw_Tr):
     
     r = Pr**(1/3)
@@ -35,8 +99,22 @@ def temperature(u_uinf, Minf, Tw_Tr):
     return T_Tw, Tinf_Tw
 
 
+# ### 3. Density profile (using ideal gas equation of state)
+# $$\frac{\bar\rho}{\rho_w} = \frac{T_w}{\bar T}$$
+
+# In[3]:
+
+
 def density(T_Tw):
     return 1/T_Tw
+
+
+# ### 4. Viscosity profile (using Sutherland's law)
+# $$\frac{\bar\mu}{\mu_w}=\left(\frac{\bar T}{T_w}\right)^{3 / 2} \frac{T_w+S}{\bar T+S},$$
+# 
+# where S = 110.56 K
+
+# In[4]:
 
 
 def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
@@ -54,6 +132,14 @@ def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
     return mu_muw
 
 
+# ### 5. Computing $Re_\tau$ and $M_\tau$ using the inputs $Re_\theta$ and $M_\infty$
+# $$Re_\tau = {Re_\theta}\frac{ \mu_\infty/\mu_w}{(\rho_\infty/\rho_w) u_\infty^+ (\theta/\delta)}$$
+# 
+# $$M_\tau = M_\infty \sqrt{\frac{c_f}{2}}$$
+
+# In[5]:
+
+
 def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, viscLaw):
     
     rinf    =   density(Tinf_Tw)
@@ -67,34 +153,56 @@ def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Ti
 
     ch = np.inf
     if Tw_Tr != 1:
-        ch        = 1/ReTau/Pr*dTdyWall(T_Tw,y_ye)/(rinf*uinf*(1/Tw_Tr - 1))   
+        # calculate high-order derivative of temperature at the wall
+        derivUniform = (-3*T_Tw[0] + 4*T_Tw[1] - 1*T_Tw[2])/2.0
+        derivGrid    = -1/60*-y_ye[3] + 0.15*-y_ye[2] - 0.75*-y_ye[1] \
+                       +1/60* y_ye[3] - 0.15* y_ye[2] + 0.75* y_ye[1]
+        dTdyWall     = derivUniform/derivGrid
+        ch           = 1/ReTau/Pr*dTdyWall/(rinf*uinf*(1/Tw_Tr - 1))   
     
     return ReTau, MTau, cf, ch
 
 
+# # Iterative solver
 
-def grid(H,n,fact):
-    tanhyp = 0.5
+# Required inputs are $Re_\theta$, $M_\infty$, $T_w/T_r$ and (optionally) the dimensional wall or free-stream temperature for Sutherland's law.  It is important to note that all solver inputs are based on the quantities in the free-stream, and not at the boundary layer edge.
+
+# In[ ]:
+
+
+# in case the notebook is executed on binder make sure that modules are installed.
+# get_ipython().system('pip install numpy')
+# get_ipython().system('pip install scipy')
+# get_ipython().system('pip install matplotlib')
+# get_ipython().system('pip install pandas')
+
+
+# In[6]:
+
+
+import numpy as np
+from scipy.integrate import cumtrapz, trapz
+
+
+# In[7]:
+
+
+# n    ... number of points
+# fact ... stretching/clustering
+def grid(n,fact):
+    H = 1.0       # --> y/y_e = 1
+    tanhyp = 0.5  # half hyp tangens
     i = tanhyp*(np.arange(0,n))/(n-1) - 0.5
     y = 1./tanhyp*H * (1.0 + np.tanh(fact*i)/np.tanh(fact/2))/2.0
     return y
 
 
-def dTdyWall(T,y):
-    derivUniform = (-3*T[0]+4*T[1]-1*T[2])/2.0
-    derivGrid    = -1/60*-y[3] + 0.15*-y[2] - 0.75*-y[1] \
-                 +1/60* y[3] - 0.15* y[2] + 0.75* y[1]
-    return derivUniform/derivGrid 
+# In[21]:
 
 
-###########################################################################
-# main iterative solver
-#
-def Solver(ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,    
-                  viscLaw = "Sutherland", Tinf_dim = 300):
-    
-    # Generate grid
-    y_ye = grid(1, 360, 5)  # (domain size, number of cells, stretching factor)
+def solver(y_ye    = grid(1000, 5), 
+           ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,    
+           viscLaw = "Sutherland", Tinf_dim = 300):
     
     # set initial values for ReTau, MTau and upl
     ReTau = 100
@@ -111,7 +219,7 @@ def Solver(ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,
         
         T_Tw, Tinf_Tw       = temperature(upl/uinf, Minf, Tw_Tr)
         mu_muw              = viscosity(T_Tw, Tinf_dim,Tinf_Tw, viscLaw)
-        r_rw                = density (T_Tw) 
+        r_rw                = density(T_Tw) 
         ypl, yst, upl, uinf = meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw)        
         ReTau, MTau, cf, ch = calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Tinf_Tw,
                                               Tinf_dim, viscLaw)
@@ -122,12 +230,24 @@ def Solver(ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,
     return cf, ch, ReTau, MTau, ypl, yst, upl, T_Tw, niter
 
 
+# ### Import plotting modules
 
-###########################################################################
-# example case
-#
-import numpy as np
-from scipy.integrate import cumtrapz, trapz
+# In[64]:
+
+
+import matplotlib.pyplot as plt
+from matplotlib import rc, rcParams
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
+import matplotlib.ticker as ticker
+# get_ipython().run_line_magic('matplotlib', 'inline')
+# get_ipython().run_line_magic('config', "InlineBackend.figure_format = 'retina'")
+rc('text', usetex=False)  # switch to True for latex font (might be slow)
+rcParams.update({'font.size': 16})
+
+
+# # An example with $M_\infty=15$, $Re_\theta =10e6$, $T_w/T_r= 0.01$, and $T_\infty=100$ K
+
+# In[71]:
 
 
 ########################################
@@ -138,60 +258,46 @@ Pr        = 0.72   # Prandtl number
 kappa     = 0.41   # Karman constant 
 Apl       = 17     # Van Driest damping constant 
 
-
 ########################################
-# Inputs for a test case
+# run a test case
 #
-Minf      = 5.86
-ReTheta   = 40774.6527128768
-Tw_Tr     = 0.76
-viscLaw   = "Sutherland"
-Tinf_dim  = 169.4
-
-
-cf,ch,ReTau,MTau,ypl,yst,upl,T, niter = Solver(ReTheta=ReTheta, Minf=Minf, Tw_Tr=Tw_Tr,
-                                               viscLaw=viscLaw, Tinf_dim=Tinf_dim)
+cf,ch,ReTau,MTau,ypl,yst,upl,T,niter = solver(y_ye     = grid(100000, 9),
+                                              ReTheta  = 10e6, 
+                                              Minf     = 15.0, 
+                                              Tw_Tr    = 0.01,
+                                              viscLaw  = "Sutherland", 
+                                              Tinf_dim = 100.0)
 
 print('Convergence reached after {0} iterations.'.format(niter))
-print('\nSkin friction coefficient cf = {0:.5e} \nHeat Transfer coefficient ch = {1:.5e}'.format(cf, ch))
+print('\nSkin friction coefficient cf = {0:.5e} \nHeat transfer coefficient ch = {1:.5e}'.format(cf, ch))
+print('ReTau = {0:.5e} \nMtau  = {1:.5e}'.format(ReTau,MTau))
 
-
-
-###########################################################################
-# plot result
+################################################
+# plot profiles
 #
-import matplotlib.pyplot as plt
-from matplotlib import rc, rcParams
-from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
-rc('text', usetex=False)  # switch to False incase the notebook is slow!!!!
-rcParams.update({'font.size': 16})
-
-fig, ax = plt.subplots(1,2,figsize=(12,5))    
-
-ax[0].semilogx(ypl[1:],upl[1:],'k-', lw=2)
-ax[1].semilogx(ypl[1:],T[1:],  'k-', lw=2)
-
+fig, ax = plt.subplots(1,2,figsize=(12,5))
+ax[0].semilogx(ypl[1:],upl[1:],'k-', lw=1.5)
+ax[1].semilogx(ypl[1:],T[1:],  'k-', lw=1.5)
 ax[0].set_ylabel(r"$\bar u^+$",  fontsize = 18)
 ax[1].set_ylabel(r"$\bar T/T_w$",fontsize = 18)
-ax[0].set_xlabel(r"$y^+$",fontsize = 18)
-ax[1].set_xlabel(r"$y^+$",fontsize = 18)
-
 for a in ax:
     a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
     a.tick_params(which='major', length=10, width=1)
-    a.tick_params(which='minor', length=5, width=1)
-
+    a.tick_params(which='minor', length=5,  width=1)
+    a.set_xticks(10.0**np.arange(-1, 8, 1))
+    a.set_xlabel(r"$y^+$",fontsize = 18)
+ax[1].set_yticks(np.arange(0,25,5))
 plt.tight_layout()
-# plt.show()
 
 
-###########################################################################
-# compare with DNS
-#
+# # Compare $c_f$ and $c_h$ estimates with various DNS cases from literature
+
+# In[69]:
+
+
 import pandas as pd
 DNS = pd.read_csv("DataForDragAndHeatTransfer.csv")
 groups = DNS.groupby('Author', as_index=True)
-
 
 fig, ax = plt.subplots(1,2,figsize=(16,5))
 
@@ -210,7 +316,7 @@ for group_name, group in groups:
         if row_index == 0:
             label = row['Author']
 
-        cf,ch,_,_,_,_,_,_,_ = Solver(ReTheta=ReTheta, Minf=Minf, Tw_Tr=Tw_Tr,
+        cf,ch,_,_,_,_,_,_,_ = solver(ReTheta=ReTheta, Minf=Minf, Tw_Tr=Tw_Tr,
                                      viscLaw=viscLaw, Tinf_dim=Tinf_dim)
 
         cf_err = (cf-cf_DNS)/cf_DNS*100
@@ -241,49 +347,61 @@ ax[1].axhline(y=0, color="gray", linestyle="-")
 ax[1].legend(bbox_to_anchor=(1.05, 1.035))
 
 plt.tight_layout()
-# plt.show()
 
 
-fig, ax = plt.subplots(2,1,figsize=(14,10))
+# ## Plot estimated velocity and temperature profiles for these cases
 
-add_x = 1
+# In[70]:
+
+
+fig, ax = plt.subplots(2,1,figsize=(14,8))
+
+mult_x = 0.1
+
 for group_name, group in groups:
     for row_index, row in group.reset_index().iterrows():
-        
-        Minf      = row['Minf']
-        ReTheta   = row['ReTheta']
-        Tw_Tr     = row['Tw_Tr']
-        viscLaw   = row['ViscLaw']
-        Tinf_dim  = row['Tinf']
-        cf_DNS    = row['cf_DNS']
-        ch_DNS    = row['ch_DNS']
 
         label = None
         if row_index == 0:
             label = row['Author']
-            add_x *= 10
+            mult_x *= 10
 
-        _,_,_,_,ypl, yst, upl, T_Tw,_ = Solver(ReTheta=ReTheta, Minf=Minf, Tw_Tr=Tw_Tr,
-                                               viscLaw=viscLaw, Tinf_dim=Tinf_dim)
+        _,_,_,_,ypl, yst, upl, T_Tw,_ = solver(ReTheta  = row['ReTheta'], 
+                                               Minf     = row['Minf'], 
+                                               Tw_Tr    = row['Tw_Tr'],
+                                               viscLaw  = row['ViscLaw'], 
+                                               Tinf_dim = row['Tinf'])
 
-        ax[0].semilogx(ypl[1:]*add_x, upl[1:],  color = row['Color'], label=label)
-        ax[1].semilogx(ypl[1:]*add_x, T_Tw[1:], color = row['Color'], label=label)
+        ax[0].semilogx(ypl[1:]*mult_x, upl[1:],  color = row['Color'], label=label)
+        ax[1].semilogx(ypl[1:]*mult_x, T_Tw[1:], color = row['Color'], label=label)
 
 
-ax[0].set_ylabel(r"$\bar u^+$",  fontsize = 18)
-ax[1].set_ylabel(r"$\bar T/T_w$",fontsize = 18)
-ax[0].set_xlabel(r"$y^+$",fontsize = 18)
-ax[1].set_xlabel(r"$y^+$",fontsize = 18)
+ax[0].set_ylabel(r"$\bar u^+$", fontsize = 18)
+ax[0].set_xlabel(r"$y^+$",      fontsize = 18)
+
+ax[1].set_ylabel(r"$\bar T/T_w$", fontsize = 18)
+ax[1].set_xlabel(r"$y^+$",        fontsize = 18)
 
 for a in ax:
     a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
     a.tick_params(which='major', length=7, width=1)
     a.tick_params(which='minor', length=4, width=1)
+    a.set_xticks(10.0**np.arange(-1, 9, 1))
 
 ax[0].legend(bbox_to_anchor=(1.05, 1.035))
 
 plt.tight_layout()
-
-
 plt.show()
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
