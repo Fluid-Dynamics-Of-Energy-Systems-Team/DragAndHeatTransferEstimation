@@ -9,19 +9,16 @@
 #                          Process & Energy Department, Faculty of 3mE
 #                          Delft University of Technology, the Netherlands.
 # 
-#        Last modified on: July 7, 2023 (Rene Pecnik) 
+#        Last modified on: July 9, 2023 (Rene Pecnik) 
 # 
 # 
-# The following python code in this notebook is based on the publication: https://doi.org/10.48550/arXiv.2307.02199.
-# 
-# 
+
 
 # # Required functions 
 # 
 # ### 1. Mean velocity (in non-dimensional form)
 # The mean velocity is obtained by 
 # 
-
 def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     
     # Semi local Reynolds number and scaled wall distances 
@@ -39,38 +36,39 @@ def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     Wake = Pi/kappa*np.pi*np.sin(np.pi*y_ye)
     
     # velocity 
-    upl  = cumtrapz( 1/(mu_muw + mut) + 1/ReTau/np.sqrt(r_rw)*Wake, ypl, initial=0)
+    upl  = cumtrapz(1/(mu_muw + mut) + 1/ReTau/np.sqrt(r_rw)*Wake, ypl, initial=0)
     
-    uinf = upl[-1]/0.99 # calculate uinf
-        
-    return ypl, yst, upl, uinf
+    upl_inf = upl[-1]/0.99 # calculate upl_inf
+
+    return ypl, yst, upl, upl_inf
 
 
 # ### 2. Temperature velocity relationship (Zhang et al. (2014), JFM)
 # 
-
 def temperature(u_uinf, Minf, Tw_Tr):
     
-    r = Pr**(1/3)
+    r       = Pr**(1/3)
     Tr_Tinf = 1 + r*(gamma - 1)/2*Minf**2
-    Tinf_Tw = 1/(Tw_Tr*Tr_Tinf)        
-    al   = 0.8
-    f_u  = (1 - al)*(u_uinf)**2 + al*(u_uinf)
-    T_Tw = 1 + (1/Tw_Tr - 1)*f_u + (Tinf_Tw - 1/Tw_Tr)*(u_uinf)**2
+    Tinf_Tw = 1/(Tw_Tr*Tr_Tinf)
     
-    return T_Tw, Tinf_Tw
+    sPr  = 0.8
+    T_Tw = 1 + (1/Tw_Tr-1)*u_uinf*((1-sPr)*(u_uinf) + sPr) + (Tinf_Tw-1/Tw_Tr)*(u_uinf)**2
+
+    dTduinf_wall = (1/Tw_Tr - 1)*sPr # Derivate of T with respect to u. 
+                                     # Used for calculation of heat transfer coefficient ch
+    
+    return T_Tw, Tinf_Tw, dTduinf_wall
 
 
 # ### 3. Density profile (using ideal gas equation of state)
 # 
-
 def density(T_Tw):
     return 1/T_Tw
 
 
 # ### 4. Viscosity profile (using Sutherland's law)
 # $$\frac{\bar\mu}{\mu_w}=\left(\frac{\bar T}{T_w}\right)^{3 / 2} \frac{T_w+S}{\bar T+S},$$
-#
+# 
 def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
 
     if viscLaw == "Sutherland":
@@ -89,32 +87,32 @@ def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
 # ### 5. Computing $Re_\tau$ and $M_\tau$ using the inputs $Re_\theta$ and $M_\infty$
 # $$Re_\tau = {Re_\theta}\frac{ \mu_\infty/\mu_w}{(\rho_\infty/\rho_w) u_\infty^+ (\theta/\delta)}$$
 # 
+def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, 
+                   T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, dTduinf_wall, viscLaw):
+    
+    rinf  = density(Tinf_Tw)
+    muinf = viscosity(Tinf_Tw, Tinf_dim, Tinf_Tw, viscLaw)    
 
-def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, viscLaw):
-    
-    rinf    =   density(Tinf_Tw)
-    muinf   =   viscosity(Tinf_Tw, Tinf_dim, Tinf_Tw, viscLaw)    
-    
     Theta         = trapz(r_rw/rinf*upl/uinf*(1 - upl/uinf), y_ye)
     ReTheta_ReTau = rinf*uinf*Theta/muinf
     ReTau         = ReTheta/ReTheta_ReTau
     cf            = 2/(rinf*uinf**2)
     MTau          = Minf*(cf/2)**0.5    
 
-    ch = np.inf
+    ch = np.nan     # ch=nan for adiabatic boundary layers
     if Tw_Tr != 1:
-        # calculate high-order derivative of temperature at the wall
-        derivUniform = (-3*T_Tw[0] + 4*T_Tw[1] - 1*T_Tw[2])/2.0
-        derivGrid    = -1/60*-y_ye[3] + 0.15*-y_ye[2] - 0.75*-y_ye[1] \
-                       +1/60* y_ye[3] - 0.15* y_ye[2] + 0.75* y_ye[1]
-        dTdyWall     = derivUniform/derivGrid
-        ch           = 1/ReTau/Pr*dTdyWall/(rinf*uinf*(1/Tw_Tr - 1))   
+        # Calculate temperature gradeitn: dT/dy = dT/du * du+/dy+.
+        # Since solver is based on viscous scales: du+/dy+ = 1
+        dTdy_Wall = dTduinf_wall / uinf
+        ch        = 1/Pr*dTdy_Wall/(rinf*uinf*(1/Tw_Tr - 1))   
     
     return ReTau, MTau, cf, ch
 
 
 # # Iterative solver
-#
+
+# Required inputs are $Re_\theta$, $M_\infty$, $T_w/T_r$ and (optionally) the dimensional wall or free-stream temperature for Sutherland's law.  It is important to note that all solver inputs are based on the quantities in the free-stream, and not at the boundary layer edge.
+
 # in case the notebook is executed on binder make sure that modules are installed.
 # get_ipython().system('pip install numpy')
 # get_ipython().system('pip install scipy')
@@ -122,27 +120,31 @@ def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Ti
 # get_ipython().system('pip install pandas')
 
 
+
 import numpy as np
 from scipy.integrate import cumtrapz, trapz
 
+
+
 # n    ... number of points
 # fact ... stretching/clustering
-def grid(n,fact):
+def grid(nPoints = 100, stretch = 5):
     H = 1.0       # --> y/y_e = 1
     tanhyp = 0.5  # half hyp tangens
-    i = tanhyp*(np.arange(0,n))/(n-1) - 0.5
-    y = 1./tanhyp*H * (1.0 + np.tanh(fact*i)/np.tanh(fact/2))/2.0
+    i = tanhyp*(np.arange(0,nPoints))/(nPoints-1) - 0.5
+    y = 1./tanhyp*H * (1.0 + np.tanh(stretch*i)/np.tanh(stretch/2))/2.0
     return y
 
 
-def solver(y_ye    = grid(1000, 5), 
+
+def solver(y_ye    = grid(200, 4), 
            ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,    
            viscLaw = "Sutherland", Tinf_dim = 300):
     
     # set initial values for ReTau, MTau and upl
     ReTau = 100
     MTau  = 0.0
-    upl   = np.ones_like(y_ye)*0.1
+    upl   = np.ones_like(y_ye)*0.01
     uinf  = upl[-1]/0.99
 
     niter = 0
@@ -152,12 +154,13 @@ def solver(y_ye    = grid(1000, 5),
 
         ReTauOld = ReTau
         
-        T_Tw, Tinf_Tw       = temperature(upl/uinf, Minf, Tw_Tr)
+        T_Tw, Tinf_Tw, dTdu_inf = temperature(upl/uinf, Minf, Tw_Tr)
         mu_muw              = viscosity(T_Tw, Tinf_dim,Tinf_Tw, viscLaw)
-        r_rw                = density(T_Tw) 
-        ypl, yst, upl, uinf = meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw)        
-        ReTau, MTau, cf, ch = calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, T_Tw, Tw_Tr, Tinf_Tw,
-                                              Tinf_dim, viscLaw)
+        r_rw                = density(T_Tw)
+        ypl, yst, upl, uinf = meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw)
+        
+        ReTau, MTau, cf, ch = calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, 
+                                             T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, dTdu_inf, viscLaw)
 
         err = abs(ReTauOld-ReTau)
         niter += 1
@@ -207,8 +210,8 @@ print('ReTau = {0:.5e} \nMtau  = {1:.5e}'.format(ReTau,MTau))
 # plot profiles
 #
 fig, ax = plt.subplots(1,2,figsize=(12,5))
-ax[0].semilogx(ypl[1:],upl[1:],'k-', lw=1.5)
-ax[1].semilogx(ypl[1:],T[1:],  'k-', lw=1.5)
+ax[0].semilogx(ypl[1:],upl[1:], color='tab:red', lw=2)
+ax[1].semilogx(ypl[1:],T[1:],   color='tab:red', lw=2)
 ax[0].set_ylabel(r"$\bar u^+$",  fontsize = 18)
 ax[1].set_ylabel(r"$\bar T/T_w$",fontsize = 18)
 for a in ax:
@@ -223,12 +226,14 @@ plt.tight_layout()
 
 # # Compare $c_f$ and $c_h$ estimates with various DNS cases from literature
 
-
 import pandas as pd
 DNS = pd.read_csv("DataForDragAndHeatTransfer.csv")
 groups = DNS.groupby('Author', as_index=True)
 
 fig, ax = plt.subplots(1,2,figsize=(16,5))
+
+cf_rms = 0.0
+ch_rms = 0.0
 
 for group_name, group in groups:
     for row_index, row in group.reset_index().iterrows():
@@ -248,27 +253,33 @@ for group_name, group in groups:
         cf,ch,_,_,_,_,_,_,_ = solver(ReTheta=ReTheta, Minf=Minf, Tw_Tr=Tw_Tr,
                                      viscLaw=viscLaw, Tinf_dim=Tinf_dim)
 
-        cf_err = (cf-cf_DNS)/cf_DNS*100
-        ch_err = (ch-ch_DNS)/ch_DNS*100
+        cf_err  = (cf-cf_DNS)/cf_DNS*100
+        ch_err  = (ch-ch_DNS)/ch_DNS*100
+        
+        cf_rms += cf_err**2
+        ch_rms  = np.nansum([ch_rms,ch_err**2])
 
         ax[0].plot(Minf, cf_err, marker = row['Symbol'], color = row['Color'], ms=10*row['Size'], 
              mew=2, fillstyle='none', linestyle='None', label=label)
         ax[1].plot(Minf, ch_err, marker = row['Symbol'], color = row['Color'], ms=10*row['Size'], 
              mew=2, fillstyle='none', linestyle='None', label=label)
 
+cf_rms = np.sqrt(cf_rms/DNS["cf_DNS"].count())
+ch_rms = np.sqrt(ch_rms/DNS["ch_DNS"].count())
 
-ax[0].set_xlabel(r"$M_\infty$",fontsize = 18)
-ax[1].set_xlabel(r"$M_\infty$",fontsize = 18)
-ax[0].set_ylabel(r"$\varepsilon_{c_f}[\%]$",fontsize = 18)
-ax[1].set_ylabel(r"$\varepsilon_{c_h}[\%]$",fontsize = 18)
+ax[0].text(1.7,5, "rms = " + str(round(cf_rms,2)))
+ax[1].text(1.7,10,"rms = " + str(round(ch_rms,2)))
+ax[0].set_ylabel(r"Error $\varepsilon_{c_f}~[\%]$",fontsize = 18)
+ax[1].set_ylabel(r"Error $\varepsilon_{c_h}~[\%]$",fontsize = 18)
 
 ax[0].set_ylim([-6, 6])
-ax[1].set_ylim([-15, 15])
+ax[1].set_ylim([-12, 12])
 
 for a in ax:
     a.tick_params(axis='both', which='both', direction='out',labelsize=16,right=True,top=True)
     a.tick_params(which='major', length=7, width=1)
     a.tick_params(which='minor', length=4, width=1)
+    a.set_xlabel(r"$M_\infty$",fontsize = 18)
 
 ax[0].axhline(y=0, color="gray", linestyle="-")
 ax[1].axhline(y=0, color="gray", linestyle="-")
@@ -280,7 +291,8 @@ plt.tight_layout()
 
 # ## Plot estimated velocity and temperature profiles for these cases
 
-fig, ax = plt.subplots(2,1,figsize=(14,8))
+
+fig, ax = plt.subplots(2,1,figsize=(14,9))
 
 mult_x = 0.1
 
@@ -301,22 +313,17 @@ for group_name, group in groups:
         ax[0].semilogx(ypl[1:]*mult_x, upl[1:],  color = row['Color'], label=label)
         ax[1].semilogx(ypl[1:]*mult_x, T_Tw[1:], color = row['Color'], label=label)
 
-
-ax[0].set_ylabel(r"$\bar u^+$", fontsize = 18)
-ax[0].set_xlabel(r"$y^+$",      fontsize = 18)
-
+ax[0].set_ylabel(r"$\bar u^+$",   fontsize = 18)
 ax[1].set_ylabel(r"$\bar T/T_w$", fontsize = 18)
-ax[1].set_xlabel(r"$y^+$",        fontsize = 18)
 
 for a in ax:
     a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
     a.tick_params(which='major', length=7, width=1)
     a.tick_params(which='minor', length=4, width=1)
     a.set_xticks(10.0**np.arange(-1, 9, 1))
+    a.set_xlabel(r"$y^+$",      fontsize = 18)
 
 ax[0].legend(bbox_to_anchor=(1.05, 1.035))
 
 plt.tight_layout()
-
-
 plt.show()
