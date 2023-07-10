@@ -4,12 +4,12 @@
 # # <center>Estimating mean profiles and fluxes in high-speed turbulent boundary layers using inner/outer-layer transformations</center>
 # 
 #              Created on: July 6, 2023
-#                 Authors: Rene Pecnik (r.pecnik@tudelft.nl)
+#            Developed by: Rene Pecnik (r.pecnik@tudelft.nl)
 #                          Asif M. Hasan (a.m.hasan@tudelft.nl)
 #                          Process & Energy Department, Faculty of 3mE
 #                          Delft University of Technology, the Netherlands.
 # 
-#        Last modified on: July 9, 2023 (Rene Pecnik) 
+#        Last modified on: July 10, 2023 (Rene Pecnik) 
 # 
 # 
 # The following python code in this notebook is based on the publication: https://doi.org/10.48550/arXiv.2307.02199.
@@ -19,7 +19,8 @@
 # # 1. Required functions 
 # 
 # ### Mean velocity (in non-dimensional form)
-#
+# The mean velocity is obtained by 
+# 
 def meanVelocity(ReTheta, ReTau, MTau, y_ye, r_rw, mu_muw):
     
     # Semi local Reynolds number and scaled wall distances 
@@ -63,7 +64,8 @@ def density(T_Tw):
 
 
 # ### Viscosity profile (using Sutherland's law)
-#
+# $$\frac{\bar\mu}{\mu_w}=\left(\frac{\bar T}{T_w}\right)^{3 / 2} \frac{T_w+S}{\bar T+S},$$
+# 
 def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
 
     if viscLaw == "Sutherland":
@@ -79,31 +81,37 @@ def viscosity(T_Tw, Tinf_dim, Tinf_Tw, viscLaw):
     return mu_muw
 
 
-# ### Compute $c_f$,  $c_h$, $Re_\tau$,  and $M_\tau$ based on the inputs $Re_\theta$ and $M_\infty$
+# ### Compute $c_f$ and $c_h$ $-$  also $Re_\tau$,  and $M_\tau$ based on the inputs $Re_\theta$ and $M_\infty$
+# 
 # 
 def calcParameters(ReTheta, Minf, y_ye, r_rw, mu_muw, upl, uinf, 
                    T_Tw, Tw_Tr, Tinf_Tw, Tinf_dim, viscLaw):
     
     rinf  = density(Tinf_Tw)
-    muinf = viscosity(Tinf_Tw, Tinf_dim, Tinf_Tw, viscLaw)    
+    muinf = viscosity(Tinf_Tw, Tinf_dim, Tinf_Tw, viscLaw)
 
     cf = 2/(rinf*uinf**2)
     ch = cf/2*sPr/Pr if Tw_Tr != 1 else np.nan  # set ch to NaN for adiabatic boundary layers
         
-    Theta         = trapz(r_rw/rinf*upl/uinf*(1 - upl/uinf), y_ye)
-    ReTau         = ReTheta/(rinf*uinf*Theta/muinf)
-    MTau          = Minf*np.sqrt(cf/2)
+    Theta = trapz(r_rw/rinf*upl/uinf*(1 - upl/uinf), y_ye)
+    ReTau = ReTheta/(rinf*uinf*Theta/muinf)
+    MTau  = Minf*np.sqrt(cf/2)
 
     return cf, ch, ReTau, MTau
 
 
 # # 2. Iterative solver
 
+# ### Import modules
+
 # in case the notebook is executed on binder, make sure that these modules are installed:
-# !pip install numpy
-# !pip install scipy
-# !pip install matplotlib
-# !pip install pandas
+# get_ipython().system('pip install numpy')
+# get_ipython().system('pip install scipy')
+# get_ipython().system('pip install matplotlib')
+# get_ipython().system('pip install pandas')
+
+
+# In[8]:
 
 
 import numpy as np
@@ -111,7 +119,6 @@ from scipy.integrate import cumtrapz, trapz
 
 
 # ### Grid, here we use a tanhyp function with clustering/stretching at the wall
-# 
 # n    ... number of points
 # fact ... stretching/clustering
 def grid(nPoints = 100, stretch = 5):
@@ -124,6 +131,9 @@ def grid(nPoints = 100, stretch = 5):
 
 # ### Main solver
 # 
+# Iterate velocity and temperature profiles until friction Reynolds number converges
+# 
+# Required inputs are $Re_\theta$, $M_\infty$, $T_w/T_r$ and (optionally) the dimensional wall or free-stream temperature for Sutherland's law.  It is important to note that all solver inputs are based on the quantities in the free-stream, and not at the boundary layer edge.
 def solver(y_ye    = grid(nPoints = 200, stretch = 4), 
            ReTheta = 1000, Minf = 1.0, Tw_Tr = 1.0,    
            viscLaw = "Sutherland", Tinf_dim = 300, 
@@ -161,16 +171,19 @@ def solver(y_ye    = grid(nPoints = 200, stretch = 4),
 
 
 # # 3. Example with $M_\infty=15$, $Re_\theta =10^6$, $T_w/T_r= 0.2$, and $T_\infty=100$ K
-#
+
+# In[11]:
+
+
 import matplotlib.pyplot as plt
 from matplotlib import rc, rcParams
-from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 import matplotlib.ticker as ticker
 # get_ipython().run_line_magic('matplotlib', 'inline')
 # get_ipython().run_line_magic('config', "InlineBackend.figure_format = 'retina'")
 rc('text', usetex=False)  # switch to True for latex font (might be slow)
-rcParams.update({'font.size': 16})
-
+rcParams.update({"xtick.major.size": 6, "xtick.minor.size": 3, "ytick.minor.size": 6, "ytick.minor.size": 3, 
+                 'xtick.direction': 'in', 'ytick.direction': 'in', 'xtick.top': True, 'ytick.right': True, 
+                 'font.size': 16})
 
 
 ########################################
@@ -198,21 +211,45 @@ cf,ch,ReTau,MTau,ypl,yst,upl,T = solver(y_ye     = grid(nPoints = 10000, stretch
 ################################################
 # plot profiles
 #
-fig, ax = plt.subplots(1,2,figsize=(12,5))
+fig, ax = plt.subplots(1,2,figsize=(12,4.5))
 ax[0].semilogx(ypl[1:],upl[1:], color='tab:red', lw=2)
 ax[1].semilogx(ypl[1:],T[1:],   color='tab:red', lw=2)
 ax[0].set_ylabel(r"$\bar u^+$",  fontsize = 18)
 ax[1].set_ylabel(r"$\bar T/T_w$",fontsize = 18)
 for a in ax:
-    a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
-    a.tick_params(which='major', length=10, width=1)
-    a.tick_params(which='minor', length=5,  width=1)
     a.set_xticks(10.0**np.arange(-1, 6, 1))
     a.set_xlabel(r"$y^+$",fontsize = 18)
 plt.tight_layout()
 
 
+
+ReTheta = 10**np.linspace(np.log10(1e4), np.log10(1e6), 20)
+
+cf = np.zeros_like(ReTheta)
+ch = np.zeros_like(ReTheta)
+
+for i, Re in enumerate(ReTheta):
+    cf_,ch_,_,_,_,_,_,_ = solver(y_ye     = grid( nPoints = 10000, stretch = 4),
+                                 ReTheta  = Re, 
+                                 Minf     = 15.0, Tw_Tr = 0.2, viscLaw  = "Sutherland", 
+                                 Tinf_dim = 100.0) 
+    cf[i] = cf_
+    ch[i] = ch_
+
+# plot cf and ch as a function of ReTheta
+fig, ax = plt.subplots(1,2,figsize=(12,4.5))
+ax[0].plot(ReTheta, cf, color='tab:red', lw = 2)
+ax[1].plot(ReTheta, ch, color='tab:red', lw = 2)
+ax[0].set_ylabel(r"$c_f$", fontsize = 18)
+ax[1].set_ylabel(r"$c_h$", fontsize = 18)
+for a in ax:
+    a.set_xlabel(r"$Re_\theta$",fontsize = 18)
+    a.ticklabel_format(axis='y', style='scientific', scilimits=(0,0))
+plt.tight_layout()
+
+
 # # 4. Validate $c_f$ and $c_h$ estimates with various DNS cases from literature
+
 
 import pandas as pd
 DNS = pd.read_csv("DataForDragAndHeatTransfer.csv")
@@ -221,7 +258,7 @@ groups = DNS.groupby('Author', as_index=True)
 cf_rms = 0.0
 ch_rms = 0.0
 
-fig, ax = plt.subplots(2,3,figsize=(16,8), sharex='col', sharey='row')
+fig, ax = plt.subplots(2,3, figsize=(16,8), sharex='col', sharey='row')
 
 for group_name, group in groups:
     for row_index, row in group.reset_index().iterrows():
@@ -273,9 +310,6 @@ ax[0,0].set_ylim([-6, 6])
 ax[1,0].set_ylim([-12, 12])
 
 for a in ax.reshape(-1):
-    a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
-    a.tick_params(which='major', length=5, width=1)
-    a.tick_params(which='minor', length=3, width=1)
     a.axhline(y=0, color="gray", linestyle=":")
 
 ax[0,2].legend(bbox_to_anchor=(1.05, 1.035))
@@ -285,6 +319,7 @@ plt.tight_layout()
 
 
 # ## Plot estimated velocity and temperature profiles for these cases
+
 
 fig, ax = plt.subplots(2,1,figsize=(14,9))
 
@@ -311,9 +346,6 @@ ax[0].set_ylabel(r"$\bar u^+$",   fontsize = 18)
 ax[1].set_ylabel(r"$\bar T/T_w$", fontsize = 18)
 
 for a in ax:
-    a.tick_params(axis='both', which='both', direction='in',labelsize=16,right=True,top=True)
-    a.tick_params(which='major', length=7, width=1)
-    a.tick_params(which='minor', length=4, width=1)
     a.set_xticks(10.0**np.arange(-1, 9, 1))
     a.set_xlabel(r"$y^+$",      fontsize = 18)
 
@@ -321,6 +353,5 @@ ax[0].legend(bbox_to_anchor=(1.05, 1.035))
 
 plt.tight_layout()
 plt.show()
-
 
 
