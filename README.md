@@ -8,7 +8,7 @@ boundary layers using inner/outer-layer transformations. The source code is base
 
 They source code can be used in the following ways:
 
-  - Execute the jupyter-notebook in [Google's colab](https://colab.research.google.com/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/main/DragAndHeatEstimate.ipynb). (Google sign-in required to execute the notebook. Use shift+enter to run the notebook cells.)
+  - Run and modify the jupyter-notebook in [Google's colab](https://colab.research.google.com/github/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/main/DragAndHeatEstimate.ipynb). (Google sign-in required to execute the notebook. Use shift+enter to run the notebook cells.)
 
 
   - Render the jupyter-notebook in [github](https://github.com/Fluid-Dynamics-Of-Energy-Systems-Team/DragAndHeatTransferEstimation/blob/master/DragAndHeatEstimate.ipynb).
